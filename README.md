@@ -10,7 +10,7 @@ Use only in an authorized, isolated lab. These examples provide an unauthenticat
 - `reverse_shell.yar`: YARA detection example.
 - `Dockerfile`: lab image.
 - `verify.sh`: one-shot lab checks.
-- `.gitignore`: excludes capture files and local caches.
+- `.gitignore` and `.dockerignore`: exclude capture files, local caches, and Git metadata from Git and the Docker build context.
 
 ## Part 2 XOR note
 
@@ -79,12 +79,12 @@ docker exec -it revshell-victim python3 /opt/revshell/encrypted_shell.py
 Run the YARA rule against the packaged Python scripts:
 
 ```sh
-docker exec revshell-attacker sh -c 'yara /opt/revshell/reverse_shell.yar /opt/revshell/*.py'
+docker exec revshell-attacker sh -c 'for f in /opt/revshell/*.py; do yara /opt/revshell/reverse_shell.yar "$f"; done'
 ```
 
 ## Verification
 
-`./verify.sh` builds the image if needed, starts throwaway containers, checks a plaintext session and the XOR relay, and probes invalid and oversized frames. It prints `PASS` or `FAIL` and exits nonzero if a check fails.
+`./verify.sh` builds the image on every run (cached layers keep it fast), starts throwaway containers, checks a plaintext session and the XOR relay, probes invalid and oversized frames on both sides, confirms the payload reconnects and runs a valid session after a rejection, and checks that the YARA rule matches every payload. It prints `PASS` or `FAIL` and exits nonzero if a check fails.
 
 ## Packet capture
 
@@ -102,7 +102,7 @@ docker cp revshell-attacker:/tmp/part2.pcap ./part2.pcap
 open -a Wireshark ./part2.pcap
 ```
 
-`-s 0` captures full payloads, including everything typed and printed in the shell. Use only synthetic commands; never capture real credentials or secrets. Capture files are omitted from the repository. `.gitignore` excludes `captures/`, `*.pcap`, and `*.pcapng`.
+`-s 0` captures full payloads, including everything typed and printed in the shell. Use only synthetic commands; never capture real credentials or secrets. The samples in `captures/` contain only test commands. Capture files are omitted from the repository: `.gitignore` and `.dockerignore` exclude `captures/`, `*.pcap`, and `*.pcapng`.
 
 In Wireshark, decode TCP port 443 as plain data, then use **Follow → TCP Stream → Raw**. Part 1 traffic is cleartext; Part 2 traffic is XOR-obfuscated. Docker Desktop keeps container traffic inside its VM, so capture inside a container rather than on the host.
 

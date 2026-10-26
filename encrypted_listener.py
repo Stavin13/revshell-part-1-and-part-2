@@ -114,6 +114,8 @@ def main():
                 relay(conn)
             except ValueError as error:
                 print(f"Rejected invalid frame from {addr}: {error}")
+            except OSError as error:
+                print(f"Connection error from {addr}: {error}")
         finally:
             conn.close()
         print("Connection closed")

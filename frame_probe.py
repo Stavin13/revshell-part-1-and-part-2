@@ -117,6 +117,40 @@ def listen_mode():
         print("OVERSIZED FAIL connection stayed open")
         ok = False
     conn.close()
+
+    server.settimeout(20)
+    try:
+        conn, _ = server.accept()
+    except socket.timeout:
+        print("UNKNOWN FAIL no reconnect")
+        print("RESULT FAIL")
+        return 1
+
+    conn.sendall(xor_crypt(new_keystream(), HEADER.pack(b"X", 0)))
+    closed = wait_closed(conn, 5)
+    if closed:
+        print("UNKNOWN PASS")
+    else:
+        print("UNKNOWN FAIL connection stayed open")
+        ok = False
+    conn.close()
+
+    server.settimeout(30)
+    try:
+        conn, _ = server.accept()
+    except socket.timeout:
+        print("RECOVER FAIL no reconnect")
+        print("RESULT FAIL")
+        return 1
+
+    send_frame(conn, new_keystream(), FRAME_DATA, b"echo RECOVER'_'OK; exit\n")
+    data = drain(conn, new_keystream(), 6, b"RECOVER_OK")
+    conn.close()
+    if b"RECOVER_OK" in data:
+        print("RECOVER PASS")
+    else:
+        print("RECOVER FAIL")
+        ok = False
     server.close()
 
     print("RESULT " + ("PASS" if ok else "FAIL"))
@@ -150,6 +184,12 @@ def client_mode():
     conn.close()
     print("OVERSIZED PASS" if closed else "OVERSIZED FAIL connection stayed open")
     ok = ok and closed
+
+    conn = connect()
+    conn.sendall(b"\x00\x00")
+    conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    conn.close()
+    time.sleep(0.5)
 
     conn = connect()
     send_frame(conn, new_keystream(), FRAME_DATA, b"ALIVE_OK")

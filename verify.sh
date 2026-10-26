@@ -36,9 +36,7 @@ if ! docker info >/dev/null 2>&1; then
     echo "docker daemon is not running"
     exit 1
 fi
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-    docker build -q -t "$IMAGE" . >/dev/null || exit 1
-fi
+docker build -q -t "$IMAGE" . >/dev/null || exit 1
 
 docker network create --internal "$NET" >/dev/null || exit 1
 NET_CREATED=1
@@ -74,16 +72,33 @@ verify() {
     fi
 }
 
+check_yara() {
+    local failed=0
+    local name
+    for name in shell.py reconnect_shell.py encrypted_shell.py; do
+        if ! docker exec "$ATTACKER" yara /opt/revshell/reverse_shell.yar "/opt/revshell/$name" 2>&1 | grep -q PythonReverseShell; then
+            echo "     missing match: $name"
+            failed=1
+        fi
+    done
+    if [ "$failed" -eq 0 ]; then
+        echo "PASS  YARA matches every payload"
+    else
+        echo "FAIL  YARA matches every payload"
+        FAILED=1
+    fi
+}
+
 check_frames() {
     local out="$WORK/frames-payload.log"
     local victim_out="$WORK/frames-payload-victim.log"
     local listener_out="$WORK/frames-listener.log"
     local client_out="$WORK/frames-client.log"
 
-    docker exec -i "$ATTACKER" timeout 25 python3 /opt/revshell/frame_probe.py listen >"$out" 2>&1 &
+    docker exec -i "$ATTACKER" timeout 65 python3 /opt/revshell/frame_probe.py listen >"$out" 2>&1 &
     local probe_pid=$!
     sleep 2
-    docker exec -i "$VICTIM" timeout 20 python3 /opt/revshell/encrypted_shell.py >"$victim_out" 2>&1 &
+    docker exec -i "$VICTIM" timeout 60 python3 /opt/revshell/encrypted_shell.py >"$victim_out" 2>&1 &
     local payload_pid=$!
     wait "$probe_pid" 2>/dev/null || true
     kill "$payload_pid" 2>/dev/null || true
@@ -122,6 +137,7 @@ check_frames() {
 
 verify "Part 1 (plaintext)" "$P1_MARK" "nc -N -lvn 443" "python3 /opt/revshell/shell.py"
 verify "Part 2 (encrypted)" "$P2_MARK" "python3 /opt/revshell/encrypted_listener.py" "python3 /opt/revshell/encrypted_shell.py"
+check_yara
 check_frames
 
 if [ "$FAILED" -eq 0 ]; then
