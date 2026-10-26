@@ -1,8 +1,7 @@
-# Python reverse-shell article examples
+# Part 1: Python PTY reverse shell
 
-This repository holds the lab code for two Medium articles:
+Reconstruction of the code example from [the Part 1 article](https://medium.com/@stavinfernandes2098/how-hard-is-it-to-build-a-reverse-shell-in-python-79082dada876).
 
-- `part-1`: Part 1 PTY example.
-- `part-2`: Part 1 plus Part 2 reconnect, XOR obfuscation, and detection examples.
+`shell.py` connects to `attacker:443`, redirects standard input and output to the socket, then starts Bash through a PTY. It provides an unauthenticated remote shell and does not encrypt traffic.
 
-Use only in an authorized, isolated lab. XOR here is obfuscation, not secure encryption.
+Use only in an authorized, isolated lab. Start a listener at `attacker:443`, then run `python3 shell.py` in the lab.
